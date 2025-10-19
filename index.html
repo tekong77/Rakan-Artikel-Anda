@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rakan Artikel Anda</title>
+    <!-- Import PDF.js Library from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background: white;
+            padding: 2rem 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+            text-align: center;
+            width: 100%;
+            max-width: 700px;
+        }
+        h1 {
+            color: #4A4A4A;
+            margin-bottom: 0.5rem;
+        }
+        p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .button, #pdfUploaderLabel {
+            background-color: #5A67D8;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+        .button:hover, #pdfUploaderLabel:hover {
+            background-color: #434190;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .button:disabled {
+            background-color: #b0b0b0;
+            cursor: not-allowed;
+        }
+        #pdfUploader {
+            display: none; /* Hide the actual file input */
+        }
+        #pdfStatus {
+            margin-top: 1rem;
+            font-style: italic;
+            color: #5A67D8;
+            font-weight: 500;
+        }
+        .display-area {
+            text-align: left;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 1.5rem;
+        }
+        .display-area div {
+            font-size: 1.1rem;
+            margin-top: 1rem;
+            padding: 12px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        #userInput {
+            background-color: #f0f2f5;
+            color: #555;
+        }
+        #botResponse {
+            background-color: #e9eaf6;
+            color: #434190;
+            font-weight: 500;
+        }
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 1rem;
+            background-color: #f4f7f9;
+            color: #888;
+            font-size: 0.9rem;
+            text-align: center;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Rakan Artikel Anda</h1>
+        <p>Langkah 1: Muat naik fail PDF. Langkah 2: Tekan butang 'Cakap' dan tanya soalan mengenai kandungan PDF tersebut.</p>
+
+        <div class="controls">
+            <input type="file" id="pdfUploader" accept=".pdf">
+            <label for="pdfUploader" id="pdfUploaderLabel">1. Muat Naik PDF</label>
+            <button id="startButton" class="button" disabled>2. 🎤 Cakap Sekarang</button>
+        </div>
+
+        <div id="pdfStatus">Tiada fail PDF dimuat naik.</div>
+
+        <div class="display-area">
+             <div id="userInput"><strong>Anda bertanya:</strong> ...</div>
+             <div id="botResponse"><strong>Jawapan dari Dokumen:</strong> ...</div>
+        </div>
+    </div>
+
+    <footer>
+        Created by Muhamad Affandi Ismail
+    </footer>
+
+    <script>
+        // Set up worker for pdf.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+
+        const pdfUploader = document.getElementById('pdfUploader');
+        const pdfStatus = document.getElementById('pdfStatus');
+        const startButton = document.getElementById('startButton');
+        const userInputDisplay = document.getElementById('userInput');
+        const botResponseDisplay = document.getElementById('botResponse');
+
+        let pdfText = ''; // Global variable to store PDF text
+
+        // 1. Handle PDF file upload
+        pdfUploader.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file || file.type !== 'application/pdf') {
+                pdfStatus.textContent = 'Sila pilih fail PDF yang sah.';
+                return;
+            }
+
+            pdfStatus.textContent = 'Memproses PDF... Sila tunggu.';
+            startButton.disabled = true;
+            pdfText = ''; // Reset text
+
+            try {
+                const fileReader = new FileReader();
+                fileReader.onload = async function() {
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    
+                    let fullText = '';
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                    }
+                    pdfText = fullText;
+                    pdfStatus.textContent = `✅ PDF "${file.name}" berjaya diproses. Sedia untuk ditanya.`;
+                    startButton.disabled = false;
+                };
+                fileReader.readAsArrayBuffer(file);
+            } catch (error) {
+                console.error('Error processing PDF:', error);
+                pdfStatus.textContent = 'Gagal memproses PDF. Sila cuba lagi.';
+                startButton.disabled = true;
+            }
+        });
+        
+        // 2. Configure Web Speech API
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        const synth = window.speechSynthesis;
+        recognition.lang = 'ms-MY'; // User will speak in Malay
+
+        startButton.onclick = () => {
+            recognition.start();
+            userInputDisplay.innerHTML = "<strong>Anda bertanya:</strong> Mendengar...";
+            botResponseDisplay.innerHTML = "<strong>Jawapan dari Dokumen:</strong> ...";
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            userInputDisplay.innerHTML = `<strong>Anda bertanya:</strong> "${transcript}"`;
+            processQuestion(transcript);
+        };
+        
+        recognition.onerror = (event) => {
+            userInputDisplay.innerHTML = "<strong>Ralat:</strong> " + event.error;
+        };
+
+        // 3. Function to process the question using AI
+        async function processQuestion(question) {
+            if (!pdfText) {
+                botResponseDisplay.innerHTML = "<strong>Jawapan dari Dokumen:</strong> Sila muat naik fail PDF terlebih dahulu.";
+                return;
+            }
+
+            botResponseDisplay.innerHTML = `<strong>Jawapan dari Dokumen:</strong> Menganalisis dokumen... 🤔`;
+
+            const apiKey = "AIzaSyCRTsAkBlOmoY30tfLVGfSBabljR7ZU6MQ"; // API key is automatically provided in this environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            // Crucial instruction for the AI
+            const systemPrompt = "You are an expert assistant that answers questions ONLY based on the provided text. DO NOT use any external knowledge. If the answer is not found in the text, state clearly 'The answer was not found in the document'. All your responses must be in English.";
+
+            // Combine the context (PDF text) and the question
+            const fullPrompt = `Here is the text from a document:\n\n---\n${pdfText}\n---\n\nBased on the text above, answer this question: "${question}"`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: fullPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                const reply = result.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I could not provide an answer.";
+                
+                botResponseDisplay.innerHTML = `<strong>Jawapan dari Dokumen:</strong> ${reply}`;
+                speak(reply);
+            } catch (error) {
+                console.error("Error calling API:", error);
+                botResponseDisplay.innerHTML = `<strong>Jawapan dari Dokumen:</strong> Ralat menyambung kepada AI.`;
+            }
+        }
+
+        // 4. Function to speak the answer
+        function speak(text) {
+            if (synth.speaking) synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US'; // Speak the answer in English
+            synth.speak(utterance);
+        }
+    </script>
+
+</body>
+</html>
